@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Model Tracker — Live</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="header-top">
+      <div>
+        <div class="eyebrow">Live Intelligence Feed</div>
+        <h1>The <em>frontier</em><br>model landscape</h1>
+        <p class="subtitle">OpenAI · Anthropic · Google · Meta · xAI · DeepSeek · Moonshot · MiniMax · Qwen · Mistral</p>
+      </div>
+      <button id="fetchBtn" onclick="fetchLatest()">
+        <span class="btn-icon">⟳</span>
+        <span class="btn-label">Fetch latest</span>
+      </button>
+    </div>
+    <div class="meta-bar">
+      <div class="meta-bar-left">
+        <div class="live-dot"></div>
+        <span id="lastUpdated">Loading...</span>
+      </div>
+      <div class="theme-switcher">
+        <span class="theme-switcher-label">Theme</span>
+        <button class="theme-btn" data-theme="void"    onclick="setTheme('void')"    title="Void">Void</button>
+        <button class="theme-btn" data-theme="nord"    onclick="setTheme('nord')"    title="Nord">Nord</button>
+        <button class="theme-btn" data-theme="dracula" onclick="setTheme('dracula')" title="Dracula">Dracula</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-row" id="statsRow">
+    <div class="stat"><div class="stat-n" id="stat-total">—</div><div class="stat-l">Models tracked</div></div>
+    <div class="stat"><div class="stat-n" id="stat-released">—</div><div class="stat-l">Released</div></div>
+    <div class="stat"><div class="stat-n" id="stat-upcoming">—</div><div class="stat-l">Upcoming</div></div>
+    <div class="stat"><div class="stat-n" id="stat-labs">—</div><div class="stat-l">Active labs</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-section">
+    <div class="filters-label">Filter models</div>
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="searchInput" placeholder="Search models, labs, capabilities..." oninput="applyFilters()">
+    </div>
+    <div class="filter-groups">
+      <div class="filter-group">
+        <span class="filter-group-name">Status</span>
+        <div class="filter-pills" id="pills-status">
+          <button class="pill active" data-group="status" data-val="all" onclick="setPill(this)">All</button>
+          <button class="pill" data-group="status" data-val="released" onclick="setPill(this)">Released</button>
+          <button class="pill" data-group="status" data-val="upcoming" onclick="setPill(this)">Upcoming</button>
+          <button class="pill" data-group="status" data-val="imminent" onclick="setPill(this)">Imminent</button>
+        </div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-group-name">Lab</span>
+        <div class="filter-pills" id="pills-lab">
+          <button class="pill active" data-group="lab" data-val="all" onclick="setPill(this)">All</button>
+          <button class="pill" data-group="lab" data-val="anthropic" onclick="setPill(this)">Anthropic</button>
+          <button class="pill" data-group="lab" data-val="openai" onclick="setPill(this)">OpenAI</button>
+          <button class="pill" data-group="lab" data-val="google" onclick="setPill(this)">Google</button>
+          <button class="pill" data-group="lab" data-val="meta" onclick="setPill(this)">Meta</button>
+          <button class="pill" data-group="lab" data-val="xai" onclick="setPill(this)">xAI</button>
+          <button class="pill" data-group="lab" data-val="deepseek" onclick="setPill(this)">DeepSeek</button>
+          <button class="pill" data-group="lab" data-val="moonshot" onclick="setPill(this)">Moonshot</button>
+          <button class="pill" data-group="lab" data-val="minimax" onclick="setPill(this)">MiniMax</button>
+          <button class="pill" data-group="lab" data-val="qwen" onclick="setPill(this)">Qwen</button>
+          <button class="pill" data-group="lab" data-val="mistral" onclick="setPill(this)">Mistral</button>
+        </div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-group-name">Capability</span>
+        <div class="filter-pills" id="pills-cap">
+          <button class="pill active" data-group="cap" data-val="all" onclick="setPill(this)">All</button>
+          <button class="pill" data-group="cap" data-val="coding" onclick="setPill(this)">Coding</button>
+          <button class="pill" data-group="cap" data-val="reasoning" onclick="setPill(this)">Reasoning</button>
+          <button class="pill" data-group="cap" data-val="multimodal" onclick="setPill(this)">Multimodal</button>
+          <button class="pill" data-group="cap" data-val="agents" onclick="setPill(this)">Agents</button>
+          <button class="pill" data-group="cap" data-val="open" onclick="setPill(this)">Open Source</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results count -->
+  <div class="results-bar">
+    <span id="resultsCount">—</span>
+    <button id="clearFilters" onclick="clearAllFilters()" style="display:none">✕ Clear filters</button>
+  </div>
+
+  <!-- Loading state -->
+  <div id="loadingState">
+    <div class="loader"></div>
+    <div>Querying Claude for latest AI model intelligence...</div>
+  </div>
+
+  <!-- Models list -->
+  <div id="modelsList"></div>
+
+  <!-- Empty state -->
+  <div id="emptyState">
+    <div style="font-size:2rem;margin-bottom:12px">⊘</div>
+    No models match your filters.
+  </div>
+
+  <footer>
+    <span>AI Model Tracker — Powered by Claude</span>
+    <span id="footerTimestamp" style="color: var(--cyan)">—</span>
+  </footer>
+
+</div>
+<script src="app.js" defer></script>
+</body>
+</html>
