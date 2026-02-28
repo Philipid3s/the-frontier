@@ -1,0 +1,9 @@
+services:
+  app:
+    image: philipid3s/the-frontier-model-landscape:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PORT=3000
