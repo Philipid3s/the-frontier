@@ -102,6 +102,20 @@ h1 em { font-style: italic; color: var(--cyan); }
 
 .subtitle { color: var(--muted2); font-size: 12px; letter-spacing: 1px; }
 
+/* Refresh button */
+#fetchBtn {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  color: var(--text); font-family: 'Space Mono', monospace;
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  padding: 12px 20px; cursor: pointer;
+  transition: all 0.2s; white-space: nowrap; align-self: flex-start; margin-top: 8px;
+}
+#fetchBtn:hover { border-color: var(--accent); color: #c4b5fd; background: var(--accent-glow); }
+#fetchBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-icon { font-size: 14px; transition: transform 0.6s; }
+#fetchBtn.loading .btn-icon { animation: spin 0.8s linear infinite; }
+
 /* Last updated */
 .meta-bar {
   display: flex; align-items: center; justify-content: space-between;

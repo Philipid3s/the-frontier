@@ -2,13 +2,15 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs').promises;
 
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
-const MODEL = 'claude-sonnet-4-20250514';
+const ANTHROPIC_MODEL = 'claude-sonnet-4-20250514';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 function buildPrompt() {
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -39,41 +41,64 @@ Rules:
 - Respond with ONLY the raw JSON array, no markdown, no explanation`;
 }
 
+async function fetchFromAnthropic(apiKey) {
+  const res = await fetch(ANTHROPIC_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: ANTHROPIC_MODEL,
+      max_tokens: 3000,
+      messages: [{ role: 'user', content: buildPrompt() }]
+    })
+  });
+  const data = await res.json();
+  if (data.type === 'error') throw new Error(data.error?.message || 'Anthropic API error');
+  const textBlock = (data?.content || []).filter(b => b.type === 'text').pop();
+  return textBlock?.text || '';
+}
+
+async function fetchFromGemini(apiKey) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: buildPrompt() }] }],
+      generationConfig: { maxOutputTokens: 8192 }
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || 'Gemini API error');
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
 app.post('/api/fetch-models', async (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set in environment' });
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+
+  if (!anthropicKey && !geminiKey) {
+    return res.status(500).json({ error: 'No API key set. Add ANTHROPIC_API_KEY or GEMINI_API_KEY to .env' });
   }
 
   try {
-    const upstream = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 3000,
-        messages: [{ role: 'user', content: buildPrompt() }]
-      })
-    });
-
-    const data = await upstream.json();
-
-    if (data.type === 'error') {
-      console.error('Anthropic API error response:', JSON.stringify(data, null, 2));
-      return res.status(502).json({ error: data.error?.message || 'Anthropic API error' });
+    let raw;
+    if (anthropicKey) {
+      console.log('Using Anthropic');
+      raw = await fetchFromAnthropic(anthropicKey);
+    } else {
+      console.log('Using Gemini');
+      raw = await fetchFromGemini(geminiKey);
     }
-
-    const textBlock = (data?.content || []).filter(b => b.type === 'text').pop();
-    const raw = textBlock?.text || '';
     const clean = raw.replace(/```json|```/gi, '').trim();
     const models = JSON.parse(clean);
+    await fs.writeFile(path.join(__dirname, 'data', 'models.json'), JSON.stringify(models, null, 2));
     res.json(models);
   } catch (err) {
-    console.error('Anthropic API error:', err.message);
+    console.error('API error:', err.message);
     res.status(502).json({ error: err.message });
   }
 });

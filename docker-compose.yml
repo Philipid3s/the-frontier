@@ -6,4 +6,10 @@ services:
       - "3000:3000"
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PORT=3000
+    volumes:
+      - frontier-data:/app/data
+
+volumes:
+  frontier-data:
