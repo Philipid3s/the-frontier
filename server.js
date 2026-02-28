@@ -76,6 +76,12 @@ async function fetchFromGemini(apiKey) {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
+app.get('/api/provider', (req, res) => {
+  if (process.env.ANTHROPIC_API_KEY) return res.json({ label: 'Powered by Claude (Anthropic)' });
+  if (process.env.GEMINI_API_KEY)    return res.json({ label: 'Powered by Gemini (Google)' });
+  res.json({ label: 'No provider configured' });
+});
+
 app.post('/api/fetch-models', async (req, res) => {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const geminiKey = process.env.GEMINI_API_KEY;

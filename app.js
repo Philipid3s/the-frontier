@@ -159,12 +159,17 @@ async function init() {
   setTheme(localStorage.getItem('theme') || 'void');
 
   try {
-    const res = await fetch('/data/models.json');
-    const models = await res.json();
+    const [modelsRes, providerRes] = await Promise.all([
+      fetch('/data/models.json'),
+      fetch('/api/provider')
+    ]);
+    const models = await modelsRes.json();
+    const { label } = await providerRes.json();
     seedModels = models;
     allModels = models;
     renderAll(models);
     document.getElementById('lastUpdated').textContent = 'Showing cached data — click Refresh to update';
+    document.getElementById('footerProvider').textContent = `AI Model Tracker — ${label}`;
   } catch (e) {
     seedModels = [];
     allModels = [];
