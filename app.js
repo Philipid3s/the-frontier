@@ -106,13 +106,8 @@ function clearAllFilters() {
 
 // ─── API FETCH ────────────────────────────────────────────────────
 async function fetchLatest() {
-  const btn = document.getElementById('fetchBtn');
-  const label = document.querySelector('.btn-label');
   const loading = document.getElementById('loadingState');
 
-  btn.disabled = true;
-  btn.classList.add('loading');
-  label.textContent = 'Fetching...';
   loading.style.display = 'block';
   document.getElementById('modelsList').innerHTML = '';
   document.getElementById('emptyState').style.display = 'none';
@@ -137,9 +132,6 @@ async function fetchLatest() {
     renderAll(seedModels);
     document.getElementById('lastUpdated').textContent = 'API unavailable — showing cached data';
   } finally {
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    label.textContent = 'Fetch latest';
     loading.style.display = 'none';
   }
 }

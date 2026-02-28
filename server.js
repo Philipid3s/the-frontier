@@ -61,13 +61,20 @@ app.post('/api/fetch-models', async (req, res) => {
     });
 
     const data = await upstream.json();
-    const raw = data?.content?.[0]?.text || '';
+
+    if (data.type === 'error') {
+      console.error('Anthropic API error response:', JSON.stringify(data, null, 2));
+      return res.status(502).json({ error: data.error?.message || 'Anthropic API error' });
+    }
+
+    const textBlock = (data?.content || []).filter(b => b.type === 'text').pop();
+    const raw = textBlock?.text || '';
     const clean = raw.replace(/```json|```/gi, '').trim();
     const models = JSON.parse(clean);
     res.json(models);
   } catch (err) {
     console.error('Anthropic API error:', err.message);
-    res.status(502).json({ error: 'Failed to fetch from Anthropic API' });
+    res.status(502).json({ error: err.message });
   }
 });
 
