@@ -8,6 +8,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - PORT=3000
+      - REFRESH_COOLDOWN_MIN=${REFRESH_COOLDOWN_MIN:-10}
     volumes:
       - frontier-data:/app/data
 

@@ -40,9 +40,13 @@ the-frontier/
 ## Key Conventions
 
 - Vanilla JS only — no frameworks, no bundler
-- API endpoint URL and model ID are `const` declarations at the top of `server.js`
+- Model IDs, effort, and search limits are `const` declarations at the top of `server.js`
+- Refreshes are web-grounded: Anthropic uses `@anthropic-ai/sdk` + the `web_search` server tool and returns data via the strict `submit_models` tool (handles `pause_turn`); Gemini uses Google Search grounding, and `resolveGroundingRedirect()` swaps its temporary redirect links for real source URLs
 - The prompt that instructs Claude to return model data lives in `server.js:buildPrompt()`
 - Filter state lives in `activeFilters` object in `app.js`; filtering operates on DOM `data-*` attributes, not the `allModels` array
 - Model card colors use CSS custom property `--card-color` set inline per card
-- To add a new capability tag: add the CSS class in `styles.css` (follow `.tag-*` pattern) and add the pill button in `index.html`
-- To add a new lab filter: add the pill button in `index.html` and update the `lab` enum comment in `server.js:buildPrompt()`
+- To add a new capability tag: add the CSS class in `styles.css` (follow `.tag-*` pattern), add the pill button in `index.html`, and add it to `TAGS` in `server.js`
+- To add a new lab filter: add the pill button in `index.html`, add the id to `LABS` in `server.js`, and add a display name to `LAB_NAMES` in `app.js`
+- AI responses are validated by `server.js:parseModels()` before `data/models.json` is overwritten; enums (`LABS`, `STATUSES`, `TAGS`) live at the top of `server.js`
+- All model fields are untrusted: `app.js:renderCard()` must escape text with `esc()` and colors with `safeColor()`
+- `POST /api/fetch-models` is rate-limited by `REFRESH_COOLDOWN_MIN` (default 10) and returns 429 + `retryAfterSec`; `GET /api/status` exposes the cooldown and last-updated time

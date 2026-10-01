@@ -1,57 +1,96 @@
 // ─── STATE ─────────────────────────────────────────────────────
 let allModels = [];
-let seedModels = [];
 let activeFilters = { status: 'all', lab: 'all', cap: 'all' };
+let cooldownUntil = 0;
+let cooldownTimer = null;
+
+const LAB_NAMES = {
+  openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', meta: 'Meta', xai: 'xAI',
+  deepseek: 'DeepSeek', moonshot: 'Moonshot', minimax: 'MiniMax', qwen: 'Qwen',
+  mistral: 'Mistral', other: 'Other'
+};
+const STATUS_LABELS = { released: 'Released', upcoming: 'Expected', imminent: 'Imminent' };
+
+// ─── SAFETY ──────────────────────────────────────────────────────
+// Model data comes from an LLM and is persisted to disk — never trust it as HTML
+function esc(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function safeColor(v, fallback) {
+  return /^#[0-9a-f]{3,8}$/i.test(v) ? v : fallback;
+}
+function safeUrl(v) {
+  try {
+    const u = new URL(String(v));
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch { return null; }
+}
+function safeToken(v) {
+  return String(v ?? '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+}
 
 // ─── RENDER ──────────────────────────────────────────────────────
 function renderCard(m, delay = 0) {
-  const tagHtml = (m.tags || []).map(t => `<span class="tag tag-${t}">${t}</span>`).join('');
-  const noteHtml = m.note ? `<div class="model-note">${m.note}</div>` : '';
-  const statusClass = `status-${m.status}`;
-  const statusLabel = m.status === 'imminent' ? 'Imminent' : m.status === 'released' ? 'Released' : 'Expected';
+  const tags = (Array.isArray(m.tags) ? m.tags : []).map(safeToken).filter(Boolean);
+  const lab = safeToken(m.lab) || 'other';
+  const status = STATUS_LABELS[m.status] ? m.status : 'upcoming';
+  const tagHtml = tags.map(t => `<span class="tag tag-${t}">${esc(t === 'open' ? 'open source' : t)}</span>`).join('');
+  const source = safeUrl(m.source);
+  const sourceHtml = source
+    ? `<a class="model-source" href="${esc(source)}" target="_blank" rel="noopener noreferrer" title="${esc(source)}">${esc(new URL(source).hostname.replace(/^www./, ''))} ↗</a>`
+    : '';
+  const noteHtml = m.note ? `<div class="model-note"><span aria-hidden="true">⚠</span>${esc(m.note)}</div>` : '';
 
   return `
-    <div class="model-card"
-      style="--card-color:${m.color}; animation-delay:${delay}ms"
-      data-lab="${m.lab}"
-      data-status="${m.status}"
-      data-tags="${(m.tags || []).join(' ')}"
-      data-name="${m.name.toLowerCase()}"
-      data-desc="${m.desc.toLowerCase()}"
+    <article class="model-card"
+      style="--card-color:${safeColor(m.color, '#6d28d9')}; animation-delay:${delay}ms"
+      data-lab="${esc(lab)}"
+      data-status="${esc(status)}"
+      data-tags="${esc(tags.join(' '))}"
+      data-search="${esc([m.name, m.desc, lab, LAB_NAMES[lab], ...tags].join(' ').toLowerCase())}"
     >
-      <div class="model-logo" style="background:${m.logoBg}">${m.logo}</div>
-      <div class="model-info">
-        <div class="model-name">${m.name}</div>
-        <div class="model-desc">${m.desc}</div>
-        <div class="model-tags">${tagHtml}</div>
-        ${noteHtml}
+      <div class="card-head">
+        <div class="model-logo" style="background:${safeColor(m.logoBg, '#111118')}" aria-hidden="true">${esc(m.logo)}</div>
+        <div class="card-title">
+          <h3 class="model-name">${esc(m.name)}</h3>
+          <div class="model-lab">${esc(LAB_NAMES[lab] || lab)}</div>
+        </div>
+        <div class="status-badge status-${status}"><span class="s-dot"></span>${STATUS_LABELS[status]}</div>
       </div>
-      <div class="model-meta">
-        <div class="model-date">${m.date}</div>
-        <div class="status-badge ${statusClass}">
-          <div class="s-dot"></div>${statusLabel}
+      <p class="model-desc">${esc(m.desc)}</p>
+      ${noteHtml}
+      <div class="card-foot">
+        <div class="model-tags">${tagHtml}</div>
+        <div class="card-meta">
+          <div class="model-date">${esc(m.date)}</div>
+          ${sourceHtml}
         </div>
       </div>
-    </div>`;
+    </article>`;
+}
+
+function renderSection(key, title, models, offset) {
+  if (!models.length) return '';
+  return `
+    <section class="model-section" data-section="${key}">
+      <div class="section-head">
+        <h2>${title}</h2>
+        <span class="section-count"></span>
+      </div>
+      <div class="models-grid">
+        ${models.map((m, i) => renderCard(m, Math.min((offset + i) * 35, 600))).join('')}
+      </div>
+    </section>`;
 }
 
 function renderAll(models) {
-  const list = document.getElementById('modelsList');
-  list.innerHTML = '';
-
   const released = models.filter(m => m.status === 'released');
   const upcoming = models.filter(m => m.status !== 'released');
 
-  let html = '';
-  if (released.length) {
-    html += released.map((m, i) => renderCard(m, i * 40)).join('');
-  }
-  if (upcoming.length) {
-    if (released.length) html += `<div class="divider">Upcoming & imminent</div>`;
-    html += upcoming.map((m, i) => renderCard(m, released.length * 40 + i * 40)).join('');
-  }
+  document.getElementById('modelsList').innerHTML =
+    renderSection('released', 'Released', released, 0) +
+    renderSection('upcoming', 'Upcoming &amp; imminent', upcoming, released.length);
 
-  list.innerHTML = html;
   updateStats(models);
   applyFilters();
 }
@@ -60,7 +99,7 @@ function updateStats(models) {
   document.getElementById('stat-total').textContent = models.length;
   document.getElementById('stat-released').textContent = models.filter(m => m.status === 'released').length;
   document.getElementById('stat-upcoming').textContent = models.filter(m => m.status !== 'released').length;
-  document.getElementById('stat-labs').textContent = [...new Set(models.map(m => m.lab))].length;
+  document.getElementById('stat-labs').textContent = new Set(models.map(m => m.lab)).size;
 }
 
 // ─── FILTERS ─────────────────────────────────────────────────────
@@ -73,25 +112,30 @@ function setPill(btn) {
 }
 
 function applyFilters() {
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  const cards = document.querySelectorAll('.model-card');
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
   let visible = 0;
 
-  cards.forEach(card => {
-    const matchStatus = activeFilters.status === 'all' || card.dataset.status === activeFilters.status;
-    const matchLab = activeFilters.lab === 'all' || card.dataset.lab === activeFilters.lab;
-    const matchCap = activeFilters.cap === 'all' || card.dataset.tags.includes(activeFilters.cap);
-    const matchSearch = !q || card.dataset.name.includes(q) || card.dataset.desc.includes(q) || card.dataset.lab.includes(q) || card.dataset.tags.includes(q);
-
-    const show = matchStatus && matchLab && matchCap && matchSearch;
-    card.classList.toggle('hidden', !show);
-    if (show) visible++;
+  document.querySelectorAll('.model-section').forEach(section => {
+    let sectionVisible = 0;
+    section.querySelectorAll('.model-card').forEach(card => {
+      const tags = card.dataset.tags.split(' ');
+      const show =
+        (activeFilters.status === 'all' || card.dataset.status === activeFilters.status) &&
+        (activeFilters.lab === 'all' || card.dataset.lab === activeFilters.lab) &&
+        (activeFilters.cap === 'all' || tags.includes(activeFilters.cap)) &&
+        (!q || card.dataset.search.includes(q));
+      card.hidden = !show;
+      if (show) sectionVisible++;
+    });
+    section.hidden = sectionVisible === 0;
+    section.querySelector('.section-count').textContent = sectionVisible;
+    visible += sectionVisible;
   });
 
   const hasFilters = activeFilters.status !== 'all' || activeFilters.lab !== 'all' || activeFilters.cap !== 'all' || q;
-  document.getElementById('clearFilters').style.display = hasFilters ? 'block' : 'none';
-  document.getElementById('resultsCount').textContent = `${visible} model${visible !== 1 ? 's' : ''} shown`;
-  document.getElementById('emptyState').style.display = visible === 0 ? 'block' : 'none';
+  document.getElementById('clearFilters').hidden = !hasFilters;
+  document.getElementById('resultsCount').textContent = `${visible} of ${allModels.length} model${allModels.length !== 1 ? 's' : ''} shown`;
+  document.getElementById('emptyState').hidden = visible !== 0 || !allModels.length;
 }
 
 function clearAllFilters() {
@@ -104,45 +148,99 @@ function clearAllFilters() {
   applyFilters();
 }
 
+// ─── STATUS / COOLDOWN ───────────────────────────────────────────
+function formatTimestamp(ms) {
+  const d = new Date(ms);
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) +
+    ' — ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function setLastUpdated(ms) {
+  const ts = ms ? formatTimestamp(ms) : '—';
+  document.getElementById('lastUpdated').textContent = ms ? `Last updated ${ts}` : 'Showing seed data';
+  document.getElementById('footerTimestamp').textContent = ts;
+}
+
+function startCooldown(seconds) {
+  cooldownUntil = Date.now() + seconds * 1000;
+  clearInterval(cooldownTimer);
+  tickCooldown();
+  if (seconds > 0) cooldownTimer = setInterval(tickCooldown, 15000);
+}
+
+function tickCooldown() {
+  const btn = document.getElementById('fetchBtn');
+  const note = document.getElementById('cooldownNote');
+  const remaining = cooldownUntil - Date.now();
+  if (remaining <= 0) {
+    clearInterval(cooldownTimer);
+    btn.disabled = false;
+    btn.title = '';
+    note.textContent = '';
+    return;
+  }
+  const mins = Math.ceil(remaining / 60000);
+  btn.disabled = true;
+  btn.title = `Refresh available in ${mins} min`;
+  note.textContent = `· next refresh in ${mins} min`;
+}
+
+let toastTimer = null;
+function toast(msg, kind = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show toast-${kind}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 5000);
+}
+
 // ─── API FETCH ────────────────────────────────────────────────────
 async function fetchLatest() {
   const btn = document.getElementById('fetchBtn');
-  const label = document.querySelector('.btn-label');
-  const loading = document.getElementById('loadingState');
+  const label = btn.querySelector('.btn-label');
+  const list = document.getElementById('modelsList');
 
   btn.disabled = true;
   btn.classList.add('loading');
-  label.textContent = 'Fetching...';
-  loading.style.display = 'block';
-  document.getElementById('modelsList').innerHTML = '';
-  document.getElementById('emptyState').style.display = 'none';
+  label.textContent = 'Researching…';
+  toast('Searching the web for the latest models — this usually takes 1–3 minutes.');
+  document.body.classList.add('is-loading');
+  list.setAttribute('aria-busy', 'true');
 
   try {
     const res = await fetch('/api/fetch-models', { method: 'POST' });
-    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-    const models = await res.json();
+    const body = await res.json().catch(() => ({}));
 
-    allModels = models;
-    seedModels = models;
-    renderAll(models);
+    if (res.status === 429) {
+      startCooldown(body.retryAfterSec || 60);
+      toast(`Data was refreshed recently — try again in ${Math.ceil((body.retryAfterSec || 60) / 60)} min.`);
+      return;
+    }
+    if (!res.ok) throw new Error(body.error || `Server error ${res.status}`);
 
-    const now = new Date();
-    const ts = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) +
-               ' — ' + now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    document.getElementById('lastUpdated').textContent = 'Last updated: ' + ts;
-    document.getElementById('footerTimestamp').textContent = ts;
-
+    allModels = body;
+    renderAll(allModels);
+    setLastUpdated(Date.now());
+    toast(`Updated — ${allModels.length} models loaded.`, 'ok');
+    refreshStatus();
   } catch (err) {
     console.error(err);
-    allModels = seedModels;
-    renderAll(seedModels);
-    document.getElementById('lastUpdated').textContent = 'API unavailable — showing cached data';
+    toast(`Refresh failed: ${err.message}. Showing cached data.`, 'error');
   } finally {
-    btn.disabled = false;
     btn.classList.remove('loading');
     label.textContent = 'Refresh';
-    loading.style.display = 'none';
+    document.body.classList.remove('is-loading');
+    list.removeAttribute('aria-busy');
+    if (Date.now() >= cooldownUntil) btn.disabled = false;
   }
+}
+
+async function refreshStatus() {
+  try {
+    const { lastUpdated, retryAfterSec } = await (await fetch('/api/status')).json();
+    setLastUpdated(lastUpdated);
+    startCooldown(retryAfterSec);
+  } catch { /* status is cosmetic */ }
 }
 
 // ─── THEME ───────────────────────────────────────────────────────
@@ -151,29 +249,35 @@ function setTheme(name) {
   document.querySelectorAll('.theme-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.theme === name);
   });
-  localStorage.setItem('theme', name);
+  try { localStorage.setItem('theme', name); } catch { /* storage unavailable */ }
 }
 
 // ─── INIT ────────────────────────────────────────────────────────
 async function init() {
-  setTheme(localStorage.getItem('theme') || 'void');
+  let theme = 'void';
+  try { theme = localStorage.getItem('theme') || 'void'; } catch { /* storage unavailable */ }
+  setTheme(theme);
+
+  document.addEventListener('keydown', e => {
+    const input = document.getElementById('searchInput');
+    if (e.key === '/' && document.activeElement !== input) { e.preventDefault(); input.focus(); }
+    if (e.key === 'Escape' && document.activeElement === input) { input.value = ''; applyFilters(); input.blur(); }
+  });
 
   try {
     const [modelsRes, providerRes] = await Promise.all([
-      fetch('/data/models.json'),
+      fetch('/data/models.json', { cache: 'no-store' }),
       fetch('/api/provider')
     ]);
-    const models = await modelsRes.json();
+    allModels = await modelsRes.json();
+    renderAll(allModels);
     const { label } = await providerRes.json();
-    seedModels = models;
-    allModels = models;
-    renderAll(models);
-    document.getElementById('lastUpdated').textContent = 'Showing cached data — click Refresh to update';
     document.getElementById('footerProvider').textContent = `AI Model Tracker — ${label}`;
   } catch (e) {
-    seedModels = [];
     allModels = [];
+    document.getElementById('lastUpdated').textContent = 'Could not load model data';
   }
+  refreshStatus();
 }
 
 init();

@@ -98,7 +98,7 @@ the-frontier/
    ```html
    <button class="pill" data-group="lab" data-val="newlab" onclick="setPill(this)">NewLab</button>
    ```
-2. Add the lab name to the enum comment in `server.js:buildPrompt()`.
+2. Add the lab id to the `LABS` array at the top of `server.js` (used by both the prompt and response validation).
 
 **Add a new capability tag**
 

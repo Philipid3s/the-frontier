@@ -3,53 +3,56 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI Model Tracker — Live</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<title>The Frontier — AI Model Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<div class="progress" id="progressBar" aria-hidden="true"></div>
 <div class="wrap">
 
   <header>
     <div class="header-top">
-      <div>
+      <div class="brand">
         <div class="eyebrow">Live Intelligence Feed</div>
-        <h1>The <em>frontier</em><br>model landscape</h1>
+        <h1>The <em>frontier</em> model landscape</h1>
         <p class="subtitle">OpenAI · Anthropic · Google · Meta · xAI · DeepSeek · Moonshot · MiniMax · Qwen · Mistral</p>
       </div>
-      <button id="fetchBtn" onclick="fetchLatest()">
-        <span class="btn-icon">⟳</span>
-        <span class="btn-label">Refresh</span>
-      </button>
+      <div class="header-actions">
+        <button id="fetchBtn" onclick="fetchLatest()">
+          <span class="btn-icon" aria-hidden="true">⟳</span>
+          <span class="btn-label">Refresh</span>
+        </button>
+        <div class="theme-switcher" role="group" aria-label="Theme">
+          <button class="theme-btn" data-theme="void"    onclick="setTheme('void')"    title="Void">Void</button>
+          <button class="theme-btn" data-theme="nord"    onclick="setTheme('nord')"    title="Nord">Nord</button>
+          <button class="theme-btn" data-theme="dracula" onclick="setTheme('dracula')" title="Dracula">Dracula</button>
+        </div>
+      </div>
     </div>
     <div class="meta-bar">
-      <div class="meta-bar-left">
-        <div class="live-dot"></div>
-        <span id="lastUpdated">Loading...</span>
-      </div>
-      <div class="theme-switcher">
-        <span class="theme-switcher-label">Theme</span>
-        <button class="theme-btn" data-theme="void"    onclick="setTheme('void')"    title="Void">Void</button>
-        <button class="theme-btn" data-theme="nord"    onclick="setTheme('nord')"    title="Nord">Nord</button>
-        <button class="theme-btn" data-theme="dracula" onclick="setTheme('dracula')" title="Dracula">Dracula</button>
-      </div>
+      <div class="live-dot" aria-hidden="true"></div>
+      <span id="lastUpdated">Loading…</span>
+      <span id="cooldownNote"></span>
     </div>
   </header>
 
   <!-- Stats -->
   <div class="stats-row" id="statsRow">
-    <div class="stat"><div class="stat-n" id="stat-total">—</div><div class="stat-l">Models tracked</div></div>
-    <div class="stat"><div class="stat-n" id="stat-released">—</div><div class="stat-l">Released</div></div>
-    <div class="stat"><div class="stat-n" id="stat-upcoming">—</div><div class="stat-l">Upcoming</div></div>
-    <div class="stat"><div class="stat-n" id="stat-labs">—</div><div class="stat-l">Active labs</div></div>
+    <div class="stat"><div class="stat-l">Models tracked</div><div class="stat-n" id="stat-total">—</div></div>
+    <div class="stat"><div class="stat-l">Released</div><div class="stat-n stat-green" id="stat-released">—</div></div>
+    <div class="stat"><div class="stat-l">Upcoming</div><div class="stat-n stat-amber" id="stat-upcoming">—</div></div>
+    <div class="stat"><div class="stat-l">Active labs</div><div class="stat-n" id="stat-labs">—</div></div>
   </div>
 
   <!-- Filters -->
-  <div class="filters-section">
-    <div class="filters-label">Filter models</div>
+  <section class="toolbar" aria-label="Filter models">
     <div class="search-wrap">
-      <span class="search-icon">⌕</span>
-      <input type="text" id="searchInput" placeholder="Search models, labs, capabilities..." oninput="applyFilters()">
+      <span class="search-icon" aria-hidden="true">⌕</span>
+      <input type="search" id="searchInput" placeholder="Search models, labs, capabilities…" oninput="applyFilters()" aria-label="Search models">
+      <kbd class="search-kbd">/</kbd>
     </div>
     <div class="filter-groups">
       <div class="filter-group">
@@ -75,6 +78,7 @@
           <button class="pill" data-group="lab" data-val="minimax" onclick="setPill(this)">MiniMax</button>
           <button class="pill" data-group="lab" data-val="qwen" onclick="setPill(this)">Qwen</button>
           <button class="pill" data-group="lab" data-val="mistral" onclick="setPill(this)">Mistral</button>
+          <button class="pill" data-group="lab" data-val="other" onclick="setPill(this)">Other</button>
         </div>
       </div>
       <div class="filter-group">
@@ -86,38 +90,36 @@
           <button class="pill" data-group="cap" data-val="multimodal" onclick="setPill(this)">Multimodal</button>
           <button class="pill" data-group="cap" data-val="agents" onclick="setPill(this)">Agents</button>
           <button class="pill" data-group="cap" data-val="open" onclick="setPill(this)">Open Source</button>
+          <button class="pill" data-group="cap" data-val="video" onclick="setPill(this)">Video</button>
+          <button class="pill" data-group="cap" data-val="speed" onclick="setPill(this)">Speed</button>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
   <!-- Results count -->
   <div class="results-bar">
-    <span id="resultsCount">—</span>
-    <button id="clearFilters" onclick="clearAllFilters()" style="display:none">✕ Clear filters</button>
-  </div>
-
-  <!-- Loading state -->
-  <div id="loadingState">
-    <div class="loader"></div>
-    <div>Querying AI for latest model intelligence...</div>
+    <span id="resultsCount" aria-live="polite">—</span>
+    <button id="clearFilters" onclick="clearAllFilters()" hidden>✕ Clear filters</button>
   </div>
 
   <!-- Models list -->
-  <div id="modelsList"></div>
+  <main id="modelsList"></main>
 
   <!-- Empty state -->
-  <div id="emptyState">
-    <div style="font-size:2rem;margin-bottom:12px">⊘</div>
-    No models match your filters.
+  <div id="emptyState" hidden>
+    <div class="empty-icon" aria-hidden="true">⊘</div>
+    <div>No models match your filters.</div>
+    <button class="link-btn" onclick="clearAllFilters()">Clear filters</button>
   </div>
 
   <footer>
     <span id="footerProvider">AI Model Tracker</span>
-    <span id="footerTimestamp" style="color: var(--cyan)">—</span>
+    <span id="footerTimestamp">—</span>
   </footer>
 
 </div>
+<div id="toast" role="status" aria-live="polite"></div>
 <script src="app.js" defer></script>
 </body>
 </html>
